@@ -1,6 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use chrono::prelude::*;
+use clap::Parser;
 use directories::ProjectDirs;
 use kdl::{KdlDocument, KdlError};
 use miette::{bail, miette, Diagnostic, IntoDiagnostic, NamedSource, Result, SourceSpan};
@@ -66,6 +67,14 @@ pub enum ConfigurationError {
     },
 }
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// How many entries to return
+    #[arg(short = 'n', long, default_value_t = 20)]
+    limit: usize,
+}
+
 #[derive(Clone)]
 struct FeedItem {
     feed_title: String,
@@ -76,6 +85,8 @@ struct FeedItem {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = Args::parse();
+
     let mut urls: Vec<String> = vec![];
 
     let project_dirs = ProjectDirs::from("dev", "cosmicrose", "dashboard-feedreader")
@@ -184,7 +195,16 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-            Ok(feed_items)
+
+            // Cut down the list of results here while we are in a separate task
+            // so that we have less sort when all the tasks are joined.
+
+            feed_items.sort_by_key(|f| f.pub_date);
+            feed_items.reverse();
+
+            let chunk: Vec<FeedItem> = feed_items.into_iter().take(args.limit).collect();
+
+            Ok(chunk)
         });
     }
 
@@ -205,7 +225,7 @@ async fn main() -> Result<()> {
         .initial_indent("- ")
         .subsequent_indent("    ");
 
-    for feed_item in feed_items.iter().take(10) {
+    for feed_item in feed_items.iter().take(args.limit) {
         let feed_line = format!("{}: {}", feed_item.feed_title.dimmed(), feed_item.title);
         println!("{}", fill(&feed_line, &title_wrap_options));
     }
