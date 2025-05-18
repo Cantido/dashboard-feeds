@@ -5,10 +5,11 @@ use directories::ProjectDirs;
 use kdl::{KdlDocument, KdlError};
 use miette::{bail, miette, Diagnostic, IntoDiagnostic, NamedSource, Result, SourceSpan};
 use owo_colors::OwoColorize;
-use reqwest::blocking::Client;
+use reqwest::Client;
 use syndication::Feed;
 use textwrap::{fill, Options};
 use thiserror::Error;
+use tokio::task::JoinSet;
 
 #[derive(Error, Diagnostic, Debug)]
 pub enum ApplicationError {}
@@ -65,6 +66,7 @@ pub enum ConfigurationError {
     },
 }
 
+#[derive(Clone)]
 struct FeedItem {
     feed_title: String,
     title: String,
@@ -72,7 +74,8 @@ struct FeedItem {
     pub_date: DateTime<FixedOffset>,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let mut urls: Vec<String> = vec![];
 
     let project_dirs = ProjectDirs::from("dev", "cosmicrose", "dashboard-feedreader")
@@ -137,40 +140,60 @@ fn main() -> Result<()> {
 
     let client = Client::new();
 
-    let mut feed_items = vec![];
+    let mut join_set: JoinSet<Result<Vec<FeedItem>>> = JoinSet::new();
 
     for url in urls {
-        let res = client
-            .get(url)
-            .send()
-            .into_diagnostic()?
-            .text()
-            .into_diagnostic()?;
+        let task_client = client.clone();
 
-        match res.parse::<Feed>().unwrap() {
-            Feed::RSS(rss_feed) => {
-                for item in rss_feed.items() {
-                    let feed_item = FeedItem {
-                        feed_title: rss_feed.title().to_string(),
-                        title: item.title().unwrap_or("").to_string(),
-                        link: item.link().unwrap_or("").to_string(),
-                        pub_date: DateTime::parse_from_rfc2822(item.pub_date().unwrap()).unwrap(),
-                    };
+        join_set.spawn(async move {
+            let res = task_client
+                .get(url)
+                .send()
+                .await
+                .into_diagnostic()?
+                .text()
+                .await
+                .into_diagnostic()?;
 
-                    feed_items.push(feed_item);
+            let mut feed_items = vec![];
+
+            match res.parse::<Feed>().unwrap() {
+                Feed::RSS(rss_feed) => {
+                    for item in rss_feed.items() {
+                        let feed_item = FeedItem {
+                            feed_title: rss_feed.title().to_string(),
+                            title: item.title().unwrap_or("").to_string(),
+                            link: item.link().unwrap_or("").to_string(),
+                            pub_date: DateTime::parse_from_rfc2822(item.pub_date().unwrap())
+                                .unwrap(),
+                        };
+
+                        feed_items.push(feed_item);
+                    }
+                }
+                Feed::Atom(atom_feed) => {
+                    for item in atom_feed.entries() {
+                        let feed_item = FeedItem {
+                            feed_title: atom_feed.title().to_string(),
+                            title: item.title().to_string(),
+                            link: item.links()[0].href().to_string(),
+                            pub_date: item.updated().parse().unwrap(),
+                        };
+
+                        feed_items.push(feed_item);
+                    }
                 }
             }
-            Feed::Atom(atom_feed) => {
-                for item in atom_feed.entries() {
-                    let feed_item = FeedItem {
-                        feed_title: atom_feed.title().to_string(),
-                        title: item.title().to_string(),
-                        link: item.links()[0].href().to_string(),
-                        pub_date: item.updated().parse().unwrap(),
-                    };
+            Ok(feed_items)
+        });
+    }
 
-                    feed_items.push(feed_item);
-                }
+    let mut feed_items = vec![];
+
+    while let Some(task_result) = join_set.join_next().await {
+        if let Ok(fetch_result) = task_result {
+            if let Ok(feed_batch) = fetch_result {
+                feed_items.extend(feed_batch);
             }
         }
     }

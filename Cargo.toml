@@ -15,3 +15,4 @@ serde = { version = "1.0.219", features = ["derive"] }
 syndication = "0.5.0"
 textwrap = { version = "0.16.2", features = ["terminal_size"] }
 thiserror = "2.0.12"
+tokio = { version = "1.45.0", features = ["full", "rt"] }
