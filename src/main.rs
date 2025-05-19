@@ -241,13 +241,15 @@ async fn main() -> Result<()> {
         .subsequent_indent("    ");
 
     for feed_item in feed_items.iter().take(args.limit) {
-        let feed_text: String = format!("{}: {}", feed_item.feed_title.dimmed(), feed_item.title);
-        let feed_line = if supports_hyperlinks() {
+        let feed_line: String = format!("{}: {}", feed_item.feed_title.dimmed(), feed_item.title);
+        let feed_text = fill(&feed_line, &title_wrap_options);
+
+        let feed_link = if supports_hyperlinks() {
             feed_text.hyperlink(&feed_item.link)
         } else {
             feed_text
         };
-        println!("{}", fill(&feed_line, &title_wrap_options));
+        println!("{}", &feed_link)
     }
 
     Ok(())
