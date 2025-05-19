@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
 
     let mut urls: Vec<String> = vec![];
 
-    let project_dirs = ProjectDirs::from("dev", "cosmicrose", "dashboard-feedreader")
+    let project_dirs = ProjectDirs::from("dev", "cosmicrose", "dashboard-feeds")
         .expect("Standard project dir should be available on the operating system");
 
     let config_path = project_dirs.config_dir().join("config.kdl");
