@@ -7,6 +7,7 @@ use kdl::{KdlDocument, KdlError};
 use miette::{bail, miette, Diagnostic, IntoDiagnostic, NamedSource, Result, SourceSpan};
 use owo_colors::OwoColorize;
 use reqwest::Client;
+use supports_hyperlinks::supports_hyperlinks;
 use syndication::Feed;
 use textwrap::{fill, Options};
 use thiserror::Error;
@@ -65,6 +66,20 @@ pub enum ConfigurationError {
         #[label("this should have a URL string argument")]
         span: SourceSpan,
     },
+}
+
+pub trait Hyperlink<S: AsRef<str>, T: AsRef<str>> {
+    fn hyperlink(&self, url: T) -> String;
+}
+
+impl<S: AsRef<str>, T: AsRef<str>> Hyperlink<S, T> for S {
+    fn hyperlink(&self, url: T) -> String {
+        format!(
+            "\u{1b}]8;;{}\u{1b}\\{}\u{1b}]8;;\u{1b}\\",
+            url.as_ref(),
+            self.as_ref()
+        )
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -226,7 +241,12 @@ async fn main() -> Result<()> {
         .subsequent_indent("    ");
 
     for feed_item in feed_items.iter().take(args.limit) {
-        let feed_line = format!("{}: {}", feed_item.feed_title.dimmed(), feed_item.title);
+        let feed_text: String = format!("{}: {}", feed_item.feed_title.dimmed(), feed_item.title);
+        let feed_line = if supports_hyperlinks() {
+            feed_text.hyperlink(&feed_item.link)
+        } else {
+            feed_text
+        };
         println!("{}", fill(&feed_line, &title_wrap_options));
     }
 

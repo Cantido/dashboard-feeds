@@ -311,6 +311,7 @@ dependencies = [
  "owo-colors",
  "reqwest",
  "serde",
+ "supports-hyperlinks",
  "syndication",
  "textwrap",
  "thiserror 2.0.12",

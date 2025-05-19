@@ -13,6 +13,7 @@ miette = { version = "7.6.0", features = ["fancy"] }
 owo-colors = { version = "4.2.1", features = ["supports-colors"] }
 reqwest = { version = "0.12.15", features = ["blocking"] }
 serde = { version = "1.0.219", features = ["derive"] }
+supports-hyperlinks = "3.1.0"
 syndication = "0.5.0"
 textwrap = { version = "0.16.2", features = ["terminal_size"] }
 thiserror = "2.0.12"
