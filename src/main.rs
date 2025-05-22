@@ -1,17 +1,27 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, time::Duration};
 
 use chrono::prelude::*;
 use clap::Parser;
 use directories::ProjectDirs;
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 use kdl::{KdlDocument, KdlError};
 use miette::{bail, miette, Diagnostic, IntoDiagnostic, NamedSource, Result, SourceSpan};
 use owo_colors::OwoColorize;
 use reqwest::Client;
+use reqwest_middleware::ClientBuilder;
 use supports_hyperlinks::supports_hyperlinks;
 use syndication::Feed;
 use textwrap::{fill, Options};
 use thiserror::Error;
 use tokio::task::JoinSet;
+
+static USER_AGENT: &str = concat!(
+    env!("CARGO_PKG_NAME"),
+    "/",
+    env!("CARGO_PKG_VERSION"),
+    " +",
+    env!("CARGO_PKG_HOMEPAGE"),
+);
 
 #[derive(Error, Diagnostic, Debug)]
 pub enum ApplicationError {}
@@ -107,6 +117,7 @@ async fn main() -> Result<()> {
     let project_dirs = ProjectDirs::from("dev", "cosmicrose", "dashboard-feeds")
         .expect("Standard project dir should be available on the operating system");
 
+    let cache_path = project_dirs.cache_dir().join("http");
     let config_path = project_dirs.config_dir().join("config.kdl");
 
     if !config_path.exists() {
@@ -164,7 +175,21 @@ async fn main() -> Result<()> {
         urls.push(url.to_string());
     }
 
-    let client = Client::new();
+    let client = ClientBuilder::new(
+        Client::builder()
+            .brotli(true)
+            .gzip(true)
+            .user_agent(USER_AGENT)
+            .timeout(Duration::from_secs(10))
+            .build()
+            .into_diagnostic()?,
+    )
+    .with(Cache(HttpCache {
+        mode: CacheMode::Default,
+        manager: CACacheManager { path: cache_path },
+        options: HttpCacheOptions::default(),
+    }))
+    .build();
 
     let mut join_set: JoinSet<Result<Vec<FeedItem>>> = JoinSet::new();
 

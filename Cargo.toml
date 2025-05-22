@@ -2,16 +2,19 @@
 name = "dashboard-feeds"
 version = "0.1.0"
 edition = "2021"
+homepage = "https://github.com/Cantido/dashboard-feeds"
 
 [dependencies]
 anyhow = "1.0.98"
 chrono = { version = "0.4.41", features = ["serde"] }
 clap = { version = "4.5.38", features = ["derive"] }
 directories = "6.0.0"
+http-cache-reqwest = "0.15.1"
 kdl = "6.3.4"
 miette = { version = "7.6.0", features = ["fancy"] }
 owo-colors = { version = "4.2.1", features = ["supports-colors"] }
-reqwest = { version = "0.12.15", features = ["blocking"] }
+reqwest = { version = "0.12.15", features = ["blocking", "brotli", "gzip"] }
+reqwest-middleware = "0.4.2"
 serde = { version = "1.0.219", features = ["derive"] }
 supports-hyperlinks = "3.1.0"
 syndication = "0.5.0"
